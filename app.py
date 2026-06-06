@@ -87,23 +87,35 @@ with st.sidebar:
     st.header("Pipeline Controls")
 
     st.markdown("**Data Source**")
-    orders_file = st.file_uploader("Upload orders CSV", type="csv", key="orders_up")
-    trades_file = st.file_uploader("Upload trades CSV", type="csv", key="trades_up")
+    use_sample = st.checkbox("Use built-in sample data", value=False)
 
-    if orders_file or trades_file:
-        missing = []
-        if not orders_file:
-            missing.append("orders CSV")
-        if not trades_file:
-            missing.append("trades CSV")
-        if missing:
-            st.warning(f"Also upload: {', '.join(missing)}")
+    orders_file = None
+    trades_file = None
+    _ready = False
 
-    if not orders_file and not trades_file:
-        st.caption("No files uploaded — sample data will be used.")
+    if use_sample:
+        st.caption("Sample orders.csv and trades.csv will be loaded from the data/ folder.")
+        _ready = True
+    else:
+        orders_file = st.file_uploader("Upload orders CSV", type="csv", key="orders_up")
+        trades_file = st.file_uploader("Upload trades CSV", type="csv", key="trades_up")
+
+        if orders_file and not trades_file:
+            st.warning("trades CSV is missing — please upload it to continue.")
+        elif trades_file and not orders_file:
+            st.warning("orders CSV is missing — please upload it to continue.")
+        elif not orders_file and not trades_file:
+            st.caption("Upload both CSV files or tick the checkbox above to use sample data.")
+
+        _ready = bool(orders_file and trades_file)
 
     st.divider()
-    run = st.button("Run Full Pipeline", type="primary", use_container_width=True)
+    run = st.button(
+        "Run Full Pipeline",
+        type="primary",
+        use_container_width=True,
+        disabled=not _ready,
+    )
     st.divider()
     st.markdown("**Claude API**")
     st.markdown("- Model: `claude-sonnet-4-6`")
