@@ -19,6 +19,9 @@ data/cases.json
 data/notifications.json
 data/watchlist.json
 
+# Streamlit secrets (never commit real keys)
+.streamlit/secrets.toml
+
 # IDE
 .vscode/
 .idea/

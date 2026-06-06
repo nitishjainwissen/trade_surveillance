@@ -90,6 +90,24 @@ cp .env.example .env
 python main.py
 ```
 
+### 3b. Run the Streamlit web UI (local)
+
+```bash
+streamlit run app.py
+```
+
+---
+
+## Deploy to Streamlit Cloud (free)
+
+1. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub
+2. Click **New app** → select this repo → set **Main file path** to `app.py`
+3. Open **Advanced settings → Secrets** and add:
+   ```toml
+   ANTHROPIC_API_KEY = "your_api_key_here"
+   ```
+4. Click **Deploy** — your app will be live at a public URL in ~60 seconds
+
 ---
 
 ## Sample Output
