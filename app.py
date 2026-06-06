@@ -217,7 +217,7 @@ hr {
 /* ── Captions ────────────────────────────────────────────────────────── */
 [data-testid="stCaptionContainer"] p {
     color: #7a90a8 !important;
-    font-size: 1.76em;
+    font-size: 0.88em;
     font-weight: 600;
 }
 
