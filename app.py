@@ -1,7 +1,10 @@
 import json
 import os
+from collections import Counter
 from pathlib import Path
 
+import altair as alt
+import pandas as pd
 import streamlit as st
 
 st.set_page_config(
@@ -36,6 +39,41 @@ def _badge(text: str, color: str) -> str:
     return (
         f'<span style="background:{color};color:#fff;padding:3px 10px;'
         f'border-radius:12px;font-size:0.78em;font-weight:700">{text}</span>'
+    )
+
+
+def _confidence_bar(score: float) -> str:
+    """Colored HTML progress bar for an AI confidence score."""
+    pct = int(score * 100)
+    color = "#e74c3c" if score >= 0.80 else "#e67e22" if score >= 0.50 else "#27ae60"
+    return (
+        f'<div style="margin:6px 0 4px">'
+        f'<div style="display:flex;align-items:center;gap:10px">'
+        f'<div style="flex:1;background:#2a2a2a;border-radius:5px;height:12px">'
+        f'<div style="background:{color};width:{pct}%;height:12px;border-radius:5px"></div>'
+        f'</div>'
+        f'<span style="color:{color};font-weight:700;font-size:1em;min-width:3.2em">{pct}%</span>'
+        f'</div></div>'
+    )
+
+
+def _altair_bar(df: pd.DataFrame, x: str, y: str, color_map: dict, title: str) -> alt.Chart:
+    domain = list(color_map.keys())
+    rng    = list(color_map.values())
+    return (
+        alt.Chart(df)
+        .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+        .encode(
+            x=alt.X(f"{x}:N", sort=domain, axis=alt.Axis(labelAngle=0)),
+            y=alt.Y(f"{y}:Q"),
+            color=alt.Color(f"{x}:N",
+                            scale=alt.Scale(domain=domain, range=rng),
+                            legend=None),
+            tooltip=[x, y],
+        )
+        .properties(height=220, title=title)
+        .configure_view(strokeWidth=0)
+        .configure_axis(grid=False)
     )
 
 
@@ -102,7 +140,7 @@ if not os.getenv("ANTHROPIC_API_KEY"):
     st.stop()
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Run the pipeline — use spinner + progress bar (avoids st.status icon bugs)
+# Run the pipeline
 # ═════════════════════════════════════════════════════════════════════════════
 progress  = st.progress(0)
 stage_msg = st.empty()
@@ -172,6 +210,39 @@ with tab1:
     )
     st.markdown(f"**Symbols:** {', '.join(f'`{s}`' for s in summary['symbols'])}")
 
+    # ── Event timeline scatter ─────────────────────────────────────────────
+    st.subheader("Event Timeline")
+    scatter_rows = []
+    for e in events:
+        if isinstance(e, OrderEvent):
+            scatter_rows.append({
+                "Timestamp": e.timestamp,
+                "Price": e.price,
+                "Type": f"Order ({e.status.value})",
+                "Symbol": e.symbol,
+                "Qty": int(e.quantity),
+            })
+        else:
+            scatter_rows.append({
+                "Timestamp": e.timestamp,
+                "Price": e.price,
+                "Type": "Trade (EXEC)",
+                "Symbol": e.symbol,
+                "Qty": int(e.quantity),
+            })
+    scatter_df = pd.DataFrame(scatter_rows)
+    st.scatter_chart(
+        scatter_df,
+        x="Timestamp",
+        y="Price",
+        color="Type",
+        size="Qty",
+        use_container_width=True,
+        height=320,
+    )
+    st.caption("Each point is an order or trade event. Bubble size = quantity. Burst clusters indicate potential layering activity.")
+
+    # ── Event log table ────────────────────────────────────────────────────
     st.subheader("Event Log")
     rows = []
     for e in events:
@@ -197,13 +268,38 @@ with tab1:
                 "Price":  e.price,
                 "Status": "FILLED",
             })
-    st.dataframe(rows, use_container_width=True, height=420)
+    st.dataframe(rows, use_container_width=True, height=360)
 
 # ── Tab 2 — Detected Patterns ─────────────────────────────────────────────────
 with tab2:
     if not alerts:
         st.info("No suspicious patterns detected.")
     else:
+        # ── Distribution charts ────────────────────────────────────────────
+        sev_counts     = Counter(a.severity for a in alerts)
+        verdict_counts = Counter(r.verdict  for r in triage_results)
+
+        sev_df = pd.DataFrame([
+            {"Severity": s, "Count": sev_counts.get(s, 0)}
+            for s in ["HIGH", "MEDIUM", "LOW"]
+        ])
+        verdict_df = pd.DataFrame([
+            {"Verdict": v, "Count": verdict_counts.get(v, 0)}
+            for v in ["ESCALATE", "REVIEW", "DISMISS"]
+        ])
+
+        ch1, ch2 = st.columns(2)
+        with ch1:
+            st.altair_chart(
+                _altair_bar(sev_df, "Severity", "Count", _SEV_COLOR, "Alert Severity Distribution"),
+                use_container_width=True,
+            )
+        with ch2:
+            st.altair_chart(
+                _altair_bar(verdict_df, "Verdict", "Count", _VERDICT_COLOR, "Triage Verdict Distribution"),
+                use_container_width=True,
+            )
+
         st.subheader(f"{len(alerts)} Alert(s) Raised")
         for alert in alerts:
             sev_color = _SEV_COLOR.get(alert.severity, "#888")
@@ -211,7 +307,7 @@ with tab2:
             col_left, col_right = st.columns([3, 1])
             with col_left:
                 st.markdown(
-                    f"**{alert.pattern_type}** &nbsp;"
+                    f"**{alert.alert_id}** &nbsp; **{alert.pattern_type}** &nbsp;"
                     + _badge(alert.severity, sev_color),
                     unsafe_allow_html=True,
                 )
@@ -226,31 +322,54 @@ with tab2:
 with tab3:
     st.subheader("Claude Triage Verdicts")
 
-    # ── Token usage & cache savings panel ─────────────────────────────────────
+    # ── Token usage & cache savings panel ─────────────────────────────────
     st.markdown("**API Usage & Cache Savings**")
     u = triage_usage
     tu1, tu2, tu3, tu4 = st.columns(4)
-    tu1.metric("API Calls", u["calls"])
-    tu2.metric("Input Tokens",  f"{u['input_tokens']:,}")
-    tu3.metric("Cache Read Tokens", f"{u['cache_read']:,}")
+    tu1.metric("API Calls",          u["calls"])
+    tu2.metric("Input Tokens",       f"{u['input_tokens']:,}")
+    tu3.metric("Cache Read Tokens",  f"{u['cache_read']:,}")
     tu4.metric("Cache Write Tokens", f"{u['cache_creation']:,}")
 
     cu1, cu2, cu3, cu4 = st.columns(4)
-    cu1.metric("Total Cost (USD)", f"${u['total_usd']:.4f}")
-    cu2.metric("Cache Read Cost",  f"${u['cost_read_usd']:.4f}")
-    cu3.metric("Cache Write Cost", f"${u['cost_write_usd']:.4f}")
-    cu4.metric("Savings from Caching", f"${u['savings_usd']:.4f}",
+    cu1.metric("Total Cost (USD)",       f"${u['total_usd']:.4f}")
+    cu2.metric("Cache Read Cost",        f"${u['cost_read_usd']:.4f}")
+    cu3.metric("Cache Write Cost",       f"${u['cost_write_usd']:.4f}")
+    cu4.metric("Savings from Caching",   f"${u['savings_usd']:.4f}",
                delta=f"-${u['savings_usd']:.4f}", delta_color="inverse")
+
+    # Token breakdown bar chart
+    token_df = pd.DataFrame([
+        {"Category": "Input",       "Tokens": u["input_tokens"]},
+        {"Category": "Cache Write", "Tokens": u["cache_creation"]},
+        {"Category": "Cache Read",  "Tokens": u["cache_read"]},
+        {"Category": "Output",      "Tokens": u["output_tokens"]},
+    ])
+    token_colors = {
+        "Input":       "#5b9bd5",
+        "Cache Write": "#f0a500",
+        "Cache Read":  "#27ae60",
+        "Output":      "#e67e22",
+    }
+    st.altair_chart(
+        _altair_bar(token_df, "Category", "Tokens", token_colors, "Token Usage Breakdown"),
+        use_container_width=True,
+    )
 
     if u["cache_read"] > 0:
         cache_pct = u["cache_read"] / max(u["cache_read"] + u["input_tokens"] + u["cache_creation"], 1)
-        st.progress(min(cache_pct, 1.0), text=f"Cache hit rate: {cache_pct:.0%} of input tokens served from cache")
+        st.progress(min(cache_pct, 1.0),
+                    text=f"Cache hit rate: {cache_pct:.0%} of input tokens served from cache")
     st.caption(
         f"Model: `{MODEL}` | Prompt caching enabled (ephemeral) | "
-        f"Pricing: input ${_INPUT_PRICE_PER_M}/M, cache read ${_CACHE_READ_PRICE_PER_M}/M, output ${_OUTPUT_PRICE_PER_M}/M"
+        f"Pricing: input ${_INPUT_PRICE_PER_M}/M, "
+        f"cache read ${_CACHE_READ_PRICE_PER_M}/M, "
+        f"output ${_OUTPUT_PRICE_PER_M}/M"
     )
 
     st.divider()
+
+    # ── Per-alert verdicts ─────────────────────────────────────────────────
     for alert, result in zip(alerts, triage_results):
         verdict_color = _VERDICT_COLOR.get(result.verdict, "#888")
         st.markdown("---")
@@ -262,7 +381,8 @@ with tab3:
                 unsafe_allow_html=True,
             )
         with h2:
-            st.metric("AI Confidence", f"{result.confidence_score:.0%}")
+            st.markdown("**AI Confidence**")
+            st.markdown(_confidence_bar(result.confidence_score), unsafe_allow_html=True)
 
         m1, m2 = st.columns(2)
         m1.metric("False Positive Probability", f"{result.false_positive_probability:.0%}")
@@ -302,15 +422,24 @@ with tab4:
     out_col1, out_col2, out_col3 = st.columns(3)
 
     for col, fname, label in [
-        (out_col1, "cases.json",         "cases.json"),
-        (out_col2, "notifications.json", "notifications.json"),
-        (out_col3, "watchlist.json",     "watchlist.json"),
+        (out_col1, "cases.json",          "cases.json"),
+        (out_col2, "notifications.json",  "notifications.json"),
+        (out_col3, "watchlist.json",      "watchlist.json"),
     ]:
         fpath = DATA_DIR / fname
         with col:
             st.markdown(f"**{label}**")
             if fpath.exists():
-                data = json.loads(fpath.read_text())
+                raw = fpath.read_text()
+                data = json.loads(raw)
                 st.json(data, expanded=False)
+                st.download_button(
+                    label=f"Download {label}",
+                    data=raw,
+                    file_name=fname,
+                    mime="application/json",
+                    key=f"dl_{fname}",
+                    use_container_width=True,
+                )
             else:
                 st.caption("(not generated yet)")
