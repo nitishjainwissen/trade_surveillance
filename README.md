@@ -212,15 +212,3 @@ Escalation outputs are written to `data/cases.json`, `data/notifications.json`, 
 | Structured JSON output (`messages.parse`) | Pydantic `TriageResult` schema enforced on every response |
 | Token usage tracking | Per-call + aggregate input/cache/output counts with USD cost breakdown |
 
----
-
-## Evaluation Criteria Coverage
-
-| Criterion | Implementation |
-|-----------|---------------|
-| AI Triage Quality (25%) | Claude verdict with confidence score, false-positive probability, rationale, and recommended action |
-| Pattern Detection (20%) | Layering + wash trading detectors with severity classification, baseline cancel rate comparison, median time-to-cancel |
-| Automation & Workflow (20%) | 3 escalation actions routed by verdict x severity |
-| Working Demo (20%) | Single `python main.py` runs the complete ingest -> detect -> triage -> escalate flow; Streamlit UI with file upload |
-| API Efficiency (10%) | Prompt caching on stable system prompt; per-call and aggregate token/cost display in UI |
-| Docs/README (5%) | This file with visual pipeline diagram |

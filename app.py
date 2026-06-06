@@ -79,7 +79,7 @@ def _altair_bar(df: pd.DataFrame, x: str, y: str, color_map: dict, title: str) -
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.title("Trade Surveillance & Alert Triage Engine")
-st.caption("Wissen Technology Hackathon 2026  |  Ingest  ->  Detect  ->  Triage  ->  Escalate")
+st.caption("Ingest  ->  Detect  ->  Triage  ->  Escalate")
 st.divider()
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
