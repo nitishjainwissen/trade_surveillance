@@ -1,6 +1,7 @@
+import statistics
 import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import List
 
 from src.ingestion.models import Alert, OrderEvent, OrderSide, OrderStatus, TradeEvent
@@ -22,11 +23,15 @@ class LayeringDetector(BaseDetector):
         cancel_rate_threshold: float = 0.6,
         time_window_ms: float = 2000,
         opposite_trade_window_s: float = 10.0,
+        baseline_cancel_rate: float = 0.30,
+        baseline_cancel_time_ms: float = 5000.0,
     ):
         self.min_orders = min_orders
         self.cancel_rate_threshold = cancel_rate_threshold
         self.time_window_ms = time_window_ms
         self.opposite_trade_window_s = opposite_trade_window_s
+        self.baseline_cancel_rate = baseline_cancel_rate
+        self.baseline_cancel_time_ms = baseline_cancel_time_ms
 
     def analyze(self, orders: List[OrderEvent], trades: List[TradeEvent]) -> List[Alert]:
         alerts = []
@@ -93,14 +98,24 @@ class LayeringDetector(BaseDetector):
         burst_end = max(e.timestamp for e in burst)
 
         # Count cancellations of these orders
-        cancelled_ids = {
-            e.order_id for e in all_orders
+        placed_time = {e.order_id: e.timestamp for e in burst}
+        cancelled_events = [
+            e for e in all_orders
             if e.order_id in burst_ids and e.status == OrderStatus.CANCELLED
-        }
+        ]
+        cancelled_ids = {e.order_id for e in cancelled_events}
         cancel_rate = len(cancelled_ids) / len(burst)
 
         if cancel_rate < self.cancel_rate_threshold:
             return None
+
+        # Compute median time-to-cancel for cancelled orders
+        cancel_times_ms = [
+            (e.timestamp - placed_time[e.order_id]).total_seconds() * 1000
+            for e in cancelled_events
+            if e.order_id in placed_time
+        ]
+        median_cancel_ms = round(statistics.median(cancel_times_ms), 1) if cancel_times_ms else 0.0
 
         # Look for an opposite-side execution shortly after the burst
         opposite_side = OrderSide.SELL if side == OrderSide.BUY else OrderSide.BUY
@@ -117,8 +132,23 @@ class LayeringDetector(BaseDetector):
 
         total_burst_qty = sum(e.quantity for e in burst)
         avg_burst_price = sum(e.price for e in burst) / len(burst)
+        burst_duration_ms = round(
+            (max(e.timestamp for e in burst) - burst[0].timestamp).total_seconds() * 1000, 1
+        )
+
+        # Baseline comparison metrics
+        cancel_rate_delta = round(cancel_rate - self.baseline_cancel_rate, 3)
+        cancel_time_vs_baseline = round(
+            ((median_cancel_ms - self.baseline_cancel_time_ms) / self.baseline_cancel_time_ms) * 100, 1
+        ) if self.baseline_cancel_time_ms > 0 else 0.0
 
         severity = self._severity(len(burst), cancel_rate, bool(opposite_fills))
+
+        anomaly_note = (
+            f" | Anomaly vs 30d baseline: +{cancel_rate_delta:.0%} cancel rate"
+            f", median cancel {median_cancel_ms:.0f}ms"
+            f" ({cancel_time_vs_baseline:+.0f}% vs {self.baseline_cancel_time_ms:.0f}ms baseline)"
+        )
 
         return Alert(
             alert_id=str(uuid.uuid4()),
@@ -130,18 +160,22 @@ class LayeringDetector(BaseDetector):
                 f"Layering detected: {len(burst)} {side.value} orders placed within "
                 f"{self.time_window_ms}ms, {len(cancelled_ids)} cancelled "
                 f"({cancel_rate:.0%} cancel rate)"
-                + (f", followed by opposite-side fill" if opposite_fills else "")
+                + (", followed by opposite-side fill" if opposite_fills else "")
+                + anomaly_note
             ),
             evidence={
                 "burst_order_count": len(burst),
                 "cancelled_count": len(cancelled_ids),
                 "cancel_rate": round(cancel_rate, 3),
+                "baseline_cancel_rate": self.baseline_cancel_rate,
+                "cancel_rate_vs_baseline": f"+{cancel_rate_delta:.1%}" if cancel_rate_delta >= 0 else f"{cancel_rate_delta:.1%}",
+                "median_cancel_time_ms": median_cancel_ms,
+                "baseline_cancel_time_ms": self.baseline_cancel_time_ms,
+                "cancel_time_vs_baseline": f"{cancel_time_vs_baseline:+.0f}%",
                 "burst_side": side.value,
                 "avg_burst_price": round(avg_burst_price, 4),
                 "total_burst_qty": total_burst_qty,
-                "burst_duration_ms": round(
-                    (max(e.timestamp for e in burst) - burst[0].timestamp).total_seconds() * 1000, 1
-                ),
+                "burst_duration_ms": burst_duration_ms,
                 "opposite_fills": len(opposite_fills),
             },
             timestamp=burst[0].timestamp,

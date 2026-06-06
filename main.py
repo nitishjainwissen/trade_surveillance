@@ -64,7 +64,7 @@ def main():
 
     # ── Task 3: AI Triage ─────────────────────────────────────────────────────
     _divider("AI Triage (Claude)")
-    triage_results = TriageEngine().triage_all(alerts)
+    triage_results, triage_usage = TriageEngine().triage_all(alerts)
 
     for alert, result in zip(alerts, triage_results):
         tag = VERDICT_TAG.get(result.verdict, "          ")
@@ -75,6 +75,15 @@ def main():
         print(f"    Recommended     : {result.recommended_action[:150]}...")
 
     print(f"\n  {len(triage_results)} verdict(s) issued.")
+    u = triage_usage
+    print(f"\n  --- Token Usage ---")
+    print(f"  API calls       : {u['calls']}")
+    print(f"  Input tokens    : {u['input_tokens']:,}")
+    print(f"  Cache write     : {u['cache_creation']:,}  (${u['cost_write_usd']:.4f})")
+    print(f"  Cache read      : {u['cache_read']:,}  (${u['cost_read_usd']:.4f})")
+    print(f"  Output tokens   : {u['output_tokens']:,}  (${u['cost_output_usd']:.4f})")
+    print(f"  Total cost      : ${u['total_usd']:.4f}")
+    print(f"  Cache savings   : ${u['savings_usd']:.4f}")
 
     # ── Task 4: Escalation ────────────────────────────────────────────────────
     _divider("Automated Escalation")

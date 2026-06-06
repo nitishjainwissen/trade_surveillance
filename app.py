@@ -24,6 +24,7 @@ from src.ingestion.models import OrderEvent
 from src.detection import DetectionEngine
 from src.triage import TriageEngine
 from src.escalation import EscalationEngine
+from src.triage.engine import MODEL, _INPUT_PRICE_PER_M, _CACHE_READ_PRICE_PER_M, _OUTPUT_PRICE_PER_M
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -125,7 +126,7 @@ with st.spinner("Running pipeline..."):
     progress.progress(50)
 
     stage_msg.info("Stage 3 / 4  —  AI triage via Claude...")
-    triage_results = TriageEngine().triage_all(alerts)
+    triage_results, triage_usage = TriageEngine().triage_all(alerts)
     progress.progress(75)
 
     stage_msg.info("Stage 4 / 4  —  Triggering escalation workflows...")
@@ -224,6 +225,32 @@ with tab2:
 # ── Tab 3 — AI Triage ─────────────────────────────────────────────────────────
 with tab3:
     st.subheader("Claude Triage Verdicts")
+
+    # ── Token usage & cache savings panel ─────────────────────────────────────
+    st.markdown("**API Usage & Cache Savings**")
+    u = triage_usage
+    tu1, tu2, tu3, tu4 = st.columns(4)
+    tu1.metric("API Calls", u["calls"])
+    tu2.metric("Input Tokens",  f"{u['input_tokens']:,}")
+    tu3.metric("Cache Read Tokens", f"{u['cache_read']:,}")
+    tu4.metric("Cache Write Tokens", f"{u['cache_creation']:,}")
+
+    cu1, cu2, cu3, cu4 = st.columns(4)
+    cu1.metric("Total Cost (USD)", f"${u['total_usd']:.4f}")
+    cu2.metric("Cache Read Cost",  f"${u['cost_read_usd']:.4f}")
+    cu3.metric("Cache Write Cost", f"${u['cost_write_usd']:.4f}")
+    cu4.metric("Savings from Caching", f"${u['savings_usd']:.4f}",
+               delta=f"-${u['savings_usd']:.4f}", delta_color="inverse")
+
+    if u["cache_read"] > 0:
+        cache_pct = u["cache_read"] / max(u["cache_read"] + u["input_tokens"] + u["cache_creation"], 1)
+        st.progress(min(cache_pct, 1.0), text=f"Cache hit rate: {cache_pct:.0%} of input tokens served from cache")
+    st.caption(
+        f"Model: `{MODEL}` | Prompt caching enabled (ephemeral) | "
+        f"Pricing: input ${_INPUT_PRICE_PER_M}/M, cache read ${_CACHE_READ_PRICE_PER_M}/M, output ${_OUTPUT_PRICE_PER_M}/M"
+    )
+
+    st.divider()
     for alert, result in zip(alerts, triage_results):
         verdict_color = _VERDICT_COLOR.get(result.verdict, "#888")
         st.markdown("---")
