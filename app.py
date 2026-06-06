@@ -349,14 +349,14 @@ if not run:
     st.markdown("""
 **What does this do?**
 
-This engine runs a four-stage compliance pipeline on simulated trading data:
+This engine runs a four-phase compliance pipeline on simulated trading data:
 
-| Stage | What happens |
+| Phase | What happens |
 |-------|-------------|
-| 1 — Ingest | Loads order and trade events, replays them in time order |
-| 2 — Detect | Scans for layering and wash-trading patterns, raises alerts |
-| 3 — Triage | Sends each alert to Claude for a verdict and confidence score |
-| 4 — Escalate | Routes outcomes to compliance cases, notifications, and watchlist |
+| Phase 1 — Ingest | Loads order and trade events, replays them in time order |
+| Phase 2 — Detect | Scans for layering and wash-trading patterns, raises alerts |
+| Phase 3 — Triage | Sends each alert to Claude for a verdict and confidence score |
+| Phase 4 — Escalate | Routes outcomes to compliance cases, notifications, and watchlist |
     """)
     st.stop()
 
@@ -372,11 +372,11 @@ if not os.getenv("ANTHROPIC_API_KEY"):
 # Run the pipeline
 # ═════════════════════════════════════════════════════════════════════════════
 progress  = st.progress(0)
-stage_msg = st.empty()
+phase_msg = st.empty()
 
 with st.spinner("Running pipeline..."):
 
-    stage_msg.info("Stage 1 / 4  —  Ingesting trade data...")
+    phase_msg.info("Phase 1 / 4  —  Ingesting trade data...")
     using_upload = orders_file and trades_file
     if using_upload:
         orders = load_orders_from_buffer(orders_file)
@@ -388,20 +388,20 @@ with st.spinner("Running pipeline..."):
     events   = replayer.get_events()
     progress.progress(25)
 
-    stage_msg.info("Stage 2 / 4  —  Running pattern detection...")
+    phase_msg.info("Phase 2 / 4  —  Running pattern detection...")
     alerts = DetectionEngine().run(orders, trades)
     progress.progress(50)
 
-    stage_msg.info("Stage 3 / 4  —  AI triage via Claude...")
+    phase_msg.info("Phase 3 / 4  —  AI triage via Claude...")
     triage_results, triage_usage = TriageEngine().triage_all(alerts)
     progress.progress(75)
 
-    stage_msg.info("Stage 4 / 4  —  Triggering escalation workflows...")
+    phase_msg.info("Phase 4 / 4  —  Triggering escalation workflows...")
     outcomes      = EscalationEngine().escalate_all(alerts, triage_results)
     total_actions = sum(len(o.actions_taken) for o in outcomes)
     progress.progress(100)
 
-stage_msg.empty()
+phase_msg.empty()
 progress.empty()
 if using_upload:
     st.success(f"Pipeline complete!  |  Source: uploaded files ({orders_file.name}, {trades_file.name})")
