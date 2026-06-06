@@ -14,7 +14,12 @@ st.set_page_config(
 if "ANTHROPIC_API_KEY" in st.secrets:
     os.environ["ANTHROPIC_API_KEY"] = st.secrets["ANTHROPIC_API_KEY"]
 
-from src.ingestion import load_dataset, DataReplayer
+from src.ingestion import (
+    load_dataset,
+    load_orders_from_buffer,
+    load_trades_from_buffer,
+    DataReplayer,
+)
 from src.ingestion.models import OrderEvent
 from src.detection import DetectionEngine
 from src.triage import TriageEngine
@@ -41,6 +46,24 @@ st.divider()
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Pipeline Controls")
+
+    st.markdown("**Data Source**")
+    orders_file = st.file_uploader("Upload orders CSV", type="csv", key="orders_up")
+    trades_file = st.file_uploader("Upload trades CSV", type="csv", key="trades_up")
+
+    if orders_file or trades_file:
+        missing = []
+        if not orders_file:
+            missing.append("orders CSV")
+        if not trades_file:
+            missing.append("trades CSV")
+        if missing:
+            st.warning(f"Also upload: {', '.join(missing)}")
+
+    if not orders_file and not trades_file:
+        st.caption("No files uploaded — sample data will be used.")
+
+    st.divider()
     run = st.button("Run Full Pipeline", type="primary", use_container_width=True)
     st.divider()
     st.markdown("**Claude API**")
@@ -86,10 +109,15 @@ stage_msg = st.empty()
 with st.spinner("Running pipeline..."):
 
     stage_msg.info("Stage 1 / 4  —  Ingesting trade data...")
-    orders, trades = load_dataset(str(DATA_DIR))
-    replayer       = DataReplayer(orders, trades, speed_factor=1000.0)
-    summary        = replayer.summary()
-    events         = replayer.get_events()
+    using_upload = orders_file and trades_file
+    if using_upload:
+        orders = load_orders_from_buffer(orders_file)
+        trades = load_trades_from_buffer(trades_file)
+    else:
+        orders, trades = load_dataset(str(DATA_DIR))
+    replayer = DataReplayer(orders, trades, speed_factor=1000.0)
+    summary  = replayer.summary()
+    events   = replayer.get_events()
     progress.progress(25)
 
     stage_msg.info("Stage 2 / 4  —  Running pattern detection...")
@@ -107,7 +135,10 @@ with st.spinner("Running pipeline..."):
 
 stage_msg.empty()
 progress.empty()
-st.success("Pipeline complete!")
+if using_upload:
+    st.success(f"Pipeline complete!  |  Source: uploaded files ({orders_file.name}, {trades_file.name})")
+else:
+    st.success("Pipeline complete!  |  Source: built-in sample data")
 
 # ── Top-level metrics ─────────────────────────────────────────────────────────
 c1, c2, c3, c4, c5 = st.columns(5)
