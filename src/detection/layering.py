@@ -1,11 +1,11 @@
 import statistics
-import uuid
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import List
 
 from src.ingestion.models import Alert, OrderEvent, OrderSide, OrderStatus, TradeEvent
 from .base import BaseDetector
+from .utils import next_alert_id
 
 
 class LayeringDetector(BaseDetector):
@@ -151,7 +151,7 @@ class LayeringDetector(BaseDetector):
         )
 
         return Alert(
-            alert_id=str(uuid.uuid4()),
+            alert_id=next_alert_id(),
             pattern_type="LAYERING",
             severity=severity,
             trader_id=trader_id,

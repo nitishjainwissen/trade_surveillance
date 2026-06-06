@@ -1,10 +1,10 @@
-import uuid
 from collections import defaultdict
 from datetime import timedelta
 from typing import List
 
 from src.ingestion.models import Alert, OrderEvent, OrderSide, OrderStatus, TradeEvent
 from .base import BaseDetector
+from .utils import next_alert_id
 
 
 class WashTradingDetector(BaseDetector):
@@ -85,7 +85,7 @@ class WashTradingDetector(BaseDetector):
         severity = self._severity(len(matched_pairs), total_volume)
 
         return Alert(
-            alert_id=str(uuid.uuid4()),
+            alert_id=next_alert_id(),
             pattern_type="WASH_TRADING",
             severity=severity,
             trader_id=trader_id,
