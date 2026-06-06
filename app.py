@@ -13,6 +13,222 @@ st.set_page_config(
     layout="wide",
 )
 
+st.markdown("""
+<style>
+/* ── Layout ─────────────────────────────────────────────────────────── */
+.main .block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+    max-width: 1400px;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0d1520 0%, #080d16 100%);
+    border-right: 1px solid #1a2540;
+}
+[data-testid="stSidebar"] .block-container {
+    padding-top: 1.5rem;
+}
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #cbd5e1;
+    font-size: 1em;
+    letter-spacing: 0.3px;
+}
+
+/* ── Title gradient ─────────────────────────────────────────────────── */
+h1 {
+    background: linear-gradient(90deg, #e74c3c 0%, #f39c12 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 800 !important;
+    letter-spacing: -0.5px;
+}
+h2, h3 {
+    color: #cbd5e1 !important;
+    font-weight: 600 !important;
+}
+
+/* ── File uploader ───────────────────────────────────────────────────── */
+[data-testid="stFileUploaderDropzone"] {
+    border: 2px dashed #1e3a5f !important;
+    border-radius: 12px !important;
+    background: #0d1829 !important;
+    padding: 1.2rem !important;
+    transition: border-color 0.25s ease, background 0.25s ease;
+}
+[data-testid="stFileUploaderDropzone"]:hover {
+    border-color: #3b6fb5 !important;
+    background: #0f2040 !important;
+}
+[data-testid="stFileUploaderDropzoneInstructions"] {
+    color: #4a6080 !important;
+}
+[data-testid="stFileUploaderDropzoneInstructions"] span {
+    color: #3b6fb5 !important;
+    font-weight: 600;
+}
+[data-testid="stFileUploader"] label p {
+    font-size: 0.82em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #64748b;
+}
+
+/* ── Metrics ─────────────────────────────────────────────────────────── */
+[data-testid="metric-container"] {
+    background: #0f1a2e;
+    border: 1px solid #1a2e4a;
+    border-radius: 12px;
+    padding: 1rem 1.25rem !important;
+    transition: border-color 0.2s;
+}
+[data-testid="metric-container"]:hover {
+    border-color: #2d5080;
+}
+[data-testid="stMetricLabel"] p {
+    font-size: 0.72em !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #4a6080 !important;
+}
+[data-testid="stMetricValue"] {
+    font-size: 1.6em !important;
+    font-weight: 700 !important;
+    color: #e2e8f0 !important;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.stButton > button {
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
+}
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    border: none !important;
+    box-shadow: 0 2px 12px rgba(231,76,60,0.30);
+}
+.stButton > button[kind="primary"]:hover:not(:disabled) {
+    box-shadow: 0 4px 20px rgba(231,76,60,0.45);
+    transform: translateY(-1px);
+}
+.stButton > button:disabled {
+    opacity: 0.3 !important;
+    transform: none !important;
+    box-shadow: none !important;
+    cursor: not-allowed;
+}
+
+/* ── Download buttons ────────────────────────────────────────────────── */
+[data-testid="stDownloadButton"] > button {
+    border-radius: 8px;
+    font-size: 0.82em;
+    font-weight: 600;
+    background: #0f1a2e;
+    border: 1px solid #1e3a5f;
+    color: #64748b;
+    transition: all 0.2s ease;
+}
+[data-testid="stDownloadButton"] > button:hover {
+    background: #162540;
+    border-color: #3b6fb5;
+    color: #e2e8f0;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px;
+    border-bottom: 2px solid #1a2540 !important;
+    background: transparent !important;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 6px 6px 0 0;
+    padding: 8px 22px;
+    color: #4a6080;
+    font-weight: 500;
+    font-size: 0.88em;
+    background: transparent !important;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    color: #94a3b8;
+    background: #0f1a2e !important;
+}
+.stTabs [aria-selected="true"] {
+    color: #e74c3c !important;
+    background: #0f1a2e !important;
+    border-bottom: 2px solid #e74c3c !important;
+    font-weight: 600;
+}
+
+/* ── Dataframe ───────────────────────────────────────────────────────── */
+[data-testid="stDataFrame"] {
+    border: 1px solid #1a2540;
+    border-radius: 10px;
+    overflow: hidden;
+}
+[data-testid="stDataFrame"] th {
+    background: #0f1a2e !important;
+    color: #64748b !important;
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+/* ── Alerts / banners ────────────────────────────────────────────────── */
+[data-testid="stAlert"] {
+    border-radius: 10px !important;
+    border-left-width: 4px !important;
+}
+
+/* ── Progress bar ────────────────────────────────────────────────────── */
+[data-testid="stProgressBar"] {
+    height: 6px;
+}
+[data-testid="stProgressBar"] > div {
+    border-radius: 4px;
+    background: #1a2540;
+}
+[data-testid="stProgressBar"] > div > div {
+    border-radius: 4px;
+    background: linear-gradient(90deg, #e74c3c, #f39c12) !important;
+}
+
+/* ── Divider ─────────────────────────────────────────────────────────── */
+hr {
+    border-color: #1a2540 !important;
+    margin: 0.8rem 0 !important;
+}
+
+/* ── Checkbox ────────────────────────────────────────────────────────── */
+[data-testid="stCheckbox"] label p {
+    font-weight: 500;
+    color: #94a3b8;
+}
+
+/* ── Captions ────────────────────────────────────────────────────────── */
+[data-testid="stCaptionContainer"] p {
+    color: #364860 !important;
+    font-size: 0.78em;
+}
+
+/* ── JSON viewer ─────────────────────────────────────────────────────── */
+[data-testid="stJson"] {
+    border: 1px solid #1a2540;
+    border-radius: 10px;
+    background: #0a0f1e;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Inject API key from Streamlit secrets (Streamlit Cloud) or fall back to .env
 if "ANTHROPIC_API_KEY" in st.secrets:
     os.environ["ANTHROPIC_API_KEY"] = st.secrets["ANTHROPIC_API_KEY"]
